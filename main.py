@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
-app = FastAPI()
+app = FastAPI(title="Task API", version="1.0", description="A small in-memory to-do API with full CRUD.")
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):
@@ -29,26 +29,46 @@ tasks = [
     }
 ]
 
-@app.get("/")
+@app.get("/", summary="API info", description="Returns the API name, version and available endpoints.")
 async def root():
     return {"name": "Task API", "version": "1.0", "endpoints": ["/tasks"]}
 
-@app.get("/health")
+@app.get("/health", summary="Health check", description="Returns ok when the server is running.")
 async def health():
     return {"status": "ok"}
 
-@app.get("/tasks")
+@app.get("/tasks", summary="List tasks", description="Returns every task.")
 async def get_tasks():
     return tasks
 
-@app.get("/tasks/{id}")
+@app.get("/tasks/{id}", summary="Get a task", description="Returns one task by id, or 404 if it does not exist.")
 async def get_tasks_id(id: int):
     for task in tasks:
         if task["id"] == id:
             return task
     return JSONResponse(status_code=404, content={"error": f"Task {id} not found."})  
 
-@app.post("/tasks", status_code=201)
+@app.post(
+    "/tasks",
+    status_code=201,
+    summary="Create a task",
+    description="Creates a task from a non-empty title. Returns 201 with the new task, or 400 if the body is invalid or the title is missing or empty.",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "required": ["title"],
+                        "properties": {"title": {"type": "string"}},
+                    },
+                    "example": {"title": "Buy milk"},
+                }
+            },
+        }
+    },
+)
 async def create_task(request: Request):
     try:
         task = await request.json()
@@ -70,7 +90,25 @@ async def create_task(request: Request):
     return new_task
 
 
-@app.put("/tasks/{id}")
+@app.put(
+    "/tasks/{id}",
+    summary="Update a task",
+    description="Replaces the task's title and/or done. Returns the updated task, 404 for an unknown id, or 400 for an empty or invalid body.",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {"title": {"type": "string"}, "done": {"type": "boolean"}},
+                    },
+                    "example": {"title": "Buy oat milk", "done": True},
+                }
+            },
+        }
+    },
+)
 async def update_task(id: int, request: Request):
     task = next((t for t in tasks if t["id"] == id), None)
     if task is None:
@@ -102,7 +140,7 @@ async def update_task(id: int, request: Request):
         task["done"] = body["done"]
     return task
 
-@app.delete("/tasks/{id}", status_code=204)
+@app.delete("/tasks/{id}", status_code=204, summary="Delete a task", description="Removes the task. Returns 204 with an empty body, or 404 for an unknown id.")
 async def delete_task(id: int):
     for i, task in enumerate(tasks):
         if task["id"] == id:
