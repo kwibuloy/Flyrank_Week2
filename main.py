@@ -38,6 +38,22 @@ def init_db():
     conn.close()
 
 
+def row_to_task(row):
+    # SQLite stores booleans as 0/1, so turn them back into true/false for JSON.
+    return {"id": row["id"], "title": row["title"], "done": bool(row["done"])}
+
+
+def fetch_task(id: int):
+    conn = get_db()
+    row = conn.execute("SELECT id, title, done FROM tasks WHERE id = ?", (id,)).fetchone()
+    conn.close()
+    return row_to_task(row) if row else None
+
+
+def not_found(id: int):
+    return JSONResponse(status_code=404, content={"error": f"Task {id} not found."})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
@@ -86,14 +102,17 @@ async def health():
 
 @app.get("/tasks", summary="List tasks", description="Returns every task.")
 async def get_tasks():
-    return tasks
+    conn = get_db()
+    rows = conn.execute("SELECT id, title, done FROM tasks ORDER BY id").fetchall()
+    conn.close()
+    return [row_to_task(row) for row in rows]
 
 @app.get("/tasks/{id}", summary="Get a task", description="Returns one task by id, or 404 if it does not exist.")
 async def get_tasks_id(id: int):
-    for task in tasks:
-        if task["id"] == id:
-            return task
-    return JSONResponse(status_code=404, content={"error": f"Task {id} not found."})  
+    task = fetch_task(id)
+    if task is None:
+        return not_found(id)
+    return task
 
 @app.post(
     "/tasks",
