@@ -4,14 +4,41 @@ A small to-do REST API built with [FastAPI](https://fastapi.tiangolo.com/). It s
 
 Every error response is JSON with an `error` message, e.g. `{"error": "Task 99 not found."}`.
 
-Tasks are kept in memory, so the list resets to three sample tasks every time the server restarts.
+Tasks are stored in a SQLite database, so they survive server restarts. The API (URLs, request bodies and responses) is exactly the same as the in-memory version from Assignment 1; only the storage changed.
+
+## Why SQLite
+
+- **Zero setup.** SQLite is built into Python (`import sqlite3`), so there is no database server to install, configure or keep running.
+- **One file.** The whole database is a single file you can copy, delete or open in a viewer.
+- **Real SQL.** It is a proper relational database, so the queries learned here (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) carry over to PostgreSQL or MySQL later.
+- **Right size.** A small single-user to-do API doesn't need anything bigger.
+
+## Where the database lives
+
+The database file is `tasks.db`, in the project folder next to `main.py` (the path is built from `main.py`'s own location, so it doesn't matter which folder you start the server from).
+
+You don't create it yourself. Every time the server starts it:
+
+1. creates `tasks.db` if the file is missing,
+2. creates the `tasks` table if it doesn't exist,
+3. inserts three example tasks, but only if the table is empty.
+
+```sql
+CREATE TABLE IF NOT EXISTS tasks (
+    id    INTEGER PRIMARY KEY,
+    title TEXT    NOT NULL,
+    done  BOOLEAN NOT NULL DEFAULT 0
+);
+```
+
+SQLite stores `done` as `0`/`1`; the API turns it back into `false`/`true`. `tasks.db` is listed in `.gitignore`, so each clone starts with a fresh database. To reset to the example tasks, stop the server, delete `tasks.db` and start it again.
 
 ## Requirements
 
 - Python 3.10 or newer
 - `git`
 
-## Install & run
+## How to start the project
 
 ```bash
 git clone https://github.com/kwibuloy/Flyrank_Week2.git
@@ -24,7 +51,7 @@ Then start the API with one command:
 pip install -r requirements.txt && python -m uvicorn main:app --reload
 ```
 
-The API is now running at http://localhost:8000 and the interactive docs are at http://localhost:8000/docs.
+The API is now running at http://localhost:8000 and the interactive docs are at http://localhost:8000/docs. On first start `tasks.db` is created automatically with three example tasks.
 
 Optional: use a virtual environment first (`python -m venv .venv`, then `.venv\Scripts\activate` on Windows or `source .venv/bin/activate` on macOS/Linux).
 
@@ -76,3 +103,21 @@ On Windows PowerShell, use `curl.exe` instead of `curl` and escape the inner quo
 Open http://localhost:8000/docs, expand any endpoint, click **Try it out**, then **Execute** to send a real request.
 
 ![Swagger UI showing all Task API endpoints](docs/swagger.png)
+
+## Exploring the database with SQL
+
+You can open `tasks.db` in any SQLite viewer, such as [DB Browser for SQLite](https://sqlitebrowser.org/) (**Open Database**, then the **Execute SQL** tab). All the queries I ran are in [`queries.sql`](queries.sql).
+
+I ran them with Python's built-in `sqlite3` module, so nothing extra had to be installed. The screenshot below is a read-only viewer page generated from the real `tasks.db` with `sqlite3` and captured with headless Microsoft Edge. It shows the table structure, the stored schema, every row, and the result of `SELECT * FROM tasks WHERE done = 1;`.
+
+![SQLite viewer showing the tasks table structure, its rows, and a query result](docs/sqlite-viewer.png)
+
+Example query I executed, marking every task as completed:
+
+```sql
+UPDATE tasks SET done = 1;
+```
+
+It changed 6 rows. Right after it ran, `GET /tasks` returned all six tasks with `"done": true`, with no server restart, because each request reads straight from the database. Running `DELETE FROM tasks WHERE done = 1;` next made `GET /tasks` return `[]`.
+
+In DB Browser, changes are only saved to the file after you click **Write Changes** (Ctrl+S), so the API sees them from that point on.
