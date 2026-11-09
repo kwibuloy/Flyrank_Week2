@@ -74,24 +74,6 @@ async def validation_error(request: Request, exc: RequestValidationError):
         return JSONResponse(status_code=404, content={"error": f"Task {id} not found."})
     return JSONResponse(status_code=400, content={"error": "invalid request"})
 
-tasks = [
-    {
-        "id": 1,
-        "title": "Workout",
-        "done": False
-    },
-    {
-        "id": 2,
-        "title": "Eat",
-        "done": True
-    },
-    {
-        "id": 3,
-        "title": "Shower",
-        "done": True
-    }
-]
-
 @app.get("/", summary="API info", description="Returns the API name, version and available endpoints.")
 async def root():
     return {"name": "Task API", "version": "1.0", "endpoints": ["/tasks"]}
@@ -177,9 +159,8 @@ async def create_task(request: Request):
     },
 )
 async def update_task(id: int, request: Request):
-    task = next((t for t in tasks if t["id"] == id), None)
-    if task is None:
-        return JSONResponse(status_code=404, content={"error": f"Task {id} not found."})
+    if fetch_task(id) is None:
+        return not_found(id)
 
     try:
         body = await request.json()
@@ -201,16 +182,21 @@ async def update_task(id: int, request: Request):
     if "done" in body and not isinstance(body["done"], bool):
         return JSONResponse(status_code=400, content={"error": "done must be true or false"})
 
-    if "title" in body:
-        task["title"] = body["title"].strip()
-    if "done" in body:
-        task["done"] = body["done"]
-    return task
+    conn = get_db()
+    with conn:
+        if "title" in body:
+            conn.execute("UPDATE tasks SET title = ? WHERE id = ?", (body["title"].strip(), id))
+        if "done" in body:
+            conn.execute("UPDATE tasks SET done = ? WHERE id = ?", (int(body["done"]), id))
+    conn.close()
+    return fetch_task(id)
 
 @app.delete("/tasks/{id}", status_code=204, summary="Delete a task", description="Removes the task. Returns 204 with an empty body, or 404 for an unknown id.")
 async def delete_task(id: int):
-    for i, task in enumerate(tasks):
-        if task["id"] == id:
-            tasks.pop(i)
-            return Response(status_code=204)
-    return JSONResponse(status_code=404, content={"error": f"Task {id} not found."})
+    conn = get_db()
+    with conn:
+        deleted = conn.execute("DELETE FROM tasks WHERE id = ?", (id,)).rowcount
+    conn.close()
+    if deleted == 0:
+        return not_found(id)
+    return Response(status_code=204)
