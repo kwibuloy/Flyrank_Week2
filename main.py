@@ -149,11 +149,12 @@ async def create_task(request: Request):
     if not isinstance(title, str) or title.strip() == "":
         return JSONResponse(status_code=400, content={"error": "title is required and cannot be empty"})
 
-    new_id = max([t["id"]for t in tasks], default=0) + 1
-
-    new_task = {"id": new_id, "title": title.strip(), "done": False}
-    tasks.append(new_task)
-    return new_task
+    conn = get_db()
+    with conn:
+        cursor = conn.execute("INSERT INTO tasks (title, done) VALUES (?, 0)", (title.strip(),))
+        new_id = cursor.lastrowid
+    conn.close()
+    return fetch_task(new_id)
 
 
 @app.put(
