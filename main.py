@@ -1,8 +1,55 @@
+import sqlite3
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
-app = FastAPI(title="Task API", version="1.0", description="A small in-memory to-do API with full CRUD.")
+# The database file lives next to this script, so it is found no matter
+# which folder the server is started from.
+DB_PATH = Path(__file__).parent / "tasks.db"
+
+EXAMPLE_TASKS = [("Workout", False), ("Eat", True), ("Shower", True)]
+
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    """Create the tasks table if needed and seed it on the very first run."""
+    conn = get_db()
+    with conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id    INTEGER PRIMARY KEY,
+                title TEXT    NOT NULL,
+                done  BOOLEAN NOT NULL DEFAULT 0
+            )
+            """
+        )
+        count = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+        if count == 0:
+            conn.executemany("INSERT INTO tasks (title, done) VALUES (?, ?)", EXAMPLE_TASKS)
+    conn.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(
+    title="Task API",
+    version="1.0",
+    description="A small to-do API with full CRUD, stored in SQLite.",
+    lifespan=lifespan,
+)
 
 @app.exception_handler(RequestValidationError)
 async def validation_error(request: Request, exc: RequestValidationError):

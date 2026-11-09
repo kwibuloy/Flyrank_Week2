@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# SQLite database is created automatically on first run
+tasks.db
