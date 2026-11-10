@@ -1,17 +1,17 @@
--- Stage 4: SQL queries run by hand against tasks.db
--- (in DB Browser for SQLite: Execute SQL tab). Changes show up in the API right away.
+-- Practice queries from Assignment 2. TRUE works in both SQLite and Postgres.
+-- Postgres:  docker compose exec db psql -U tasks -d tasks -c "<query>"
 
 -- List every task
 SELECT * FROM tasks;
 
 -- Show only completed tasks
-SELECT * FROM tasks WHERE done = 1;
+SELECT * FROM tasks WHERE done = TRUE;
 
 -- Count all tasks
 SELECT COUNT(*) FROM tasks;
 
 -- Mark every task as completed
-UPDATE tasks SET done = 1;
+UPDATE tasks SET done = TRUE;
 
 -- Delete all completed tasks
-DELETE FROM tasks WHERE done = 1;
+DELETE FROM tasks WHERE done = TRUE;
