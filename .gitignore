@@ -3,5 +3,8 @@ __pycache__/
 .venv/
 venv/
 
-# SQLite database is created automatically on first run
+# Real connection settings and password. Commit .env.example instead.
+.env
+
+# Old SQLite database from Week 2 (no longer used)
 tasks.db
